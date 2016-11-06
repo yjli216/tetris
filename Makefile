@@ -1,4 +1,4 @@
 all:
-	ghc -o -c tetris tetris.hs
+	ghc -o data data.hs
 clean:
-	rm *.o
+	rm *.o *.hi data
