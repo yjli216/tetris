@@ -1,4 +1,4 @@
 all:
-	ghc -o data data.hs
+	ghc --make -O -threaded tetris.hs
 clean:
-	rm *.o *.hi data
+	rm *.o *.hi tetris
