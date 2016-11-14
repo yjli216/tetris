@@ -2,6 +2,20 @@
 import CodeWorld
 import Data.List 
 
+
+data Tile = Empty2 | Falling | Static
+
+data Block = List (Coord * Tile)
+
+staticBlocks :: List Block
+staticBlocks = []
+
+fallingBlocks :: List Block
+fallingBlocks = []
+
+
+
+
 main :: IO ()
 main = interactionOf ([], []) handleTime handleEvent drawState
 -- main = drawingOf (pictureOfBoard board)
