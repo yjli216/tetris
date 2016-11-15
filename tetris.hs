@@ -1,33 +1,41 @@
 {-# LANGUAGE OverloadedStrings #-}
 import CodeWorld
-import Data.List 
+import Data.List
 
-
-data Tile = Empty2 | Falling | Static
-
-data Block = List (Coord * Tile)
-
-staticBlocks :: List Block
-staticBlocks = []
-
-fallingBlocks :: List Block
-fallingBlocks = []
-
-
-
+data State = S Double [[Coord]] [Coord] [Coord]
+-- Double is previous time, [[Coord]] list of coord of all falling coord
+-- [Coord] is currently falling list
+-- [Coord] is currently static blocks
 
 main :: IO ()
-main = interactionOf ([], []) handleTime handleEvent drawState
--- main = drawingOf (pictureOfBoard board)
+main = interactionOf initialState handleTime handleEvent drawState
 
-handleTime :: Double -> ([Coord], [Coord]) -> ([Coord], [Coord]) 
-handleTime _ c = c
+initialState = S 0 [[C 0 0]] [C 0 8] []
 
-handleEvent :: Event -> ([Coord], [Coord]) -> ([Coord], [Coord]) 
+handleTime :: Double -> State -> State
+
+-- handleTime _ s = moveFalling D s
+handleTime double (S time fallingList falling static) = 
+  if (double > time) then S double fallingList (map (move D) falling) static 
+    else S time fallingList falling static
+
+handleEvent :: Event -> State -> State
+handleEvent (KeyPress key) s
+    | key == "Right" = moveFalling R s
+    | key == "Left"    = moveFalling L s
 handleEvent _ c = c
 
-drawState :: ([Coord], [Coord]) -> Picture
-drawState (falling, static) = pictureOfBoard falling static
+move :: Direction -> Coord -> Coord
+move U (C x y) = C x (y + 1)
+move L (C x y) = C (x - 1) y
+move R (C x y) = C (x + 1) y
+move D (C x y) = C x (y - 1)
+
+moveFalling :: Direction -> State -> State
+moveFalling d (S time fallingList falling static) = (S time fallingList (map (move d) falling) static)
+
+drawState :: State -> Picture
+drawState (S _ _ falling static) = pictureOfBoard falling static
 
 data Coord = C Integer Integer
 
@@ -63,14 +71,14 @@ pictureOfBoard falling static = draw21times (\r -> draw21times (\c -> drawTileAt
         board staticBoxes fallingBoxes (C x y)
           | elem (C x y) staticBoxes = Box 
           | elem (C x y) fallingBoxes = Box 
-          | abs x == 10 || abs y == 10 = Wall
+          | abs x == 9 || abs y == 9 = Wall
           | otherwise          = Blank
 
 draw21times :: (Integer -> Picture) -> Picture
-draw21times something = go (-10)
+draw21times something = go (-9)
   where
     go :: Integer -> Picture
-    go 11 = blank
+    go 10 = blank
     go n  = something n & go (n+1)
 
 drawTileAt :: Tile -> Coord -> Picture
