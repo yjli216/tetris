@@ -1,4 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+
+module Tetris where
+  
 import CodeWorld
 import Data.List
 
@@ -7,10 +10,11 @@ data State = S Double [[Coord]] [Coord] [Coord]
 -- [Coord] is currently falling list
 -- [Coord] is currently static blocks
 
-main :: IO ()
-main = interactionOf initialState handleTime handleEvent drawState
+--main :: IO ()
+--main = interactionOf initialState handleTime handleEvent drawState
 
 initialState = S 0 [[C 0 0]] [C 0 8] []
+mkInitialState blocks = S 0 blocks [C 0 8] []
 
 handleTime :: Double -> State -> State
 
