@@ -18,12 +18,17 @@ data State = S Double [[Coord]] [Coord] [Coord] [Integer]
 initialState = S 0 [[C 0 0]] [C 0 8] [] (randoms $ mkStdGen 0)
 mkInitialState blocks = S 0 blocks [C 0 8] [] (randoms $ mkStdGen 0)
 
-handleTime :: Double -> State -> State
+-- handleTime :: Double -> State -> State
 
--- handleTime _ s = moveFalling D s
-handleTime double (S time fallingList falling static rands) = 
-  if (double > time) then S double fallingList (map (move D) falling) static rands
-    else S time fallingList falling static rands
+handleTime :: Double -> State -> State
+handleTime _ (S 10 fallingList falling static) = S 0 fallingList (map (move D) falling) static 
+handleTime _ (S n fallingList falling static) = S (n+1) fallingList falling static 
+
+
+-- -- handleTime _ s = moveFalling D s
+-- handleTime double (S time fallingList falling static rands) = 
+--   if (double > time) then S double fallingList (map (move D) falling) static rands
+--     else S time fallingList falling static rands
 
 handleEvent :: Event -> State -> State
 handleEvent (KeyPress key) s
@@ -99,6 +104,3 @@ drawTileAt tile c = atCoord c (drawTile tile)
 
 atCoord :: Coord -> Picture -> Picture
 atCoord (C x y) pic = translated (fromIntegral x) (fromIntegral y) pic
-
-
-
