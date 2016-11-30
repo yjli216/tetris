@@ -43,7 +43,13 @@ main = do
   --print (splitOn "\n\n" file)
   case parseFile file of
     Left _ -> putStrLn "input file is not properly formatted!"
-    Right blocks -> interactionOf (mkInitialState blocks) handleTime handleEvent drawState
+    Right blocks -> interactionOf initializeState handleTime handleEvent drawState where
+      initializeState = mkInitialState initializeBlocks
+      initializeBlocks :: [[Coord]]
+      initializeBlocks = moveUp 5 blocks --moves all blocks up by 5 units to the top of the screen
+      moveUp :: Integer -> [[Coord]] -> [[Coord]]
+      moveUp 0 lst = lst
+      moveUp n lst = moveUp (n-1) (map (\block -> map (move U) block) lst)
 
 
 
