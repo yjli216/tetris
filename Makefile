@@ -1,4 +1,4 @@
 all:
-	ghc --make -O -threaded tetris.hs
+	ghc --make -O -threaded parser.hs
 clean:
-	rm *.o *.hi tetris
+	rm *.o *.hi parser

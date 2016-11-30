@@ -4,6 +4,7 @@ module Tetris where
   
 import CodeWorld
 import System.Random
+import Data.List
 
 data State = S Double [[Coord]] [Coord] [Coord] [Integer]
 -- Double is previous time
@@ -15,20 +16,33 @@ data State = S Double [[Coord]] [Coord] [Coord] [Integer]
 --main :: IO ()
 --main = interactionOf initialState handleTime handleEvent drawState
 
-initialState = S 0 [[C 0 0]] [C 0 8] [] (randoms $ mkStdGen 0)
-mkInitialState blocks = S 0 blocks [C 0 8] [] (randoms $ mkStdGen 0)
+-- initialState = S 0 [[C 0 0]] [C 0 8] [C 6 6, C 5 5, C 0 0] (randoms $ mkStdGen 0)
+mkInitialState blocks = S 0 blocks [C 0 8] wallCoord (randoms $ mkStdGen 0)
 
--- handleTime :: Double -> State -> State
+--all the wallCoordinates
+wallCoord :: [Coord]
+wallCoord = add [] (-9)
+  where add list 9 = C 9 9 : C (-9) (-9) : list
+        add list n = C 9 n : C n 9 : C n (-9) : C (-9) n : add list (n+1)
 
 handleTime :: Double -> State -> State
-handleTime _ (S 10 fallingList falling static) = S 0 fallingList (map (move D) falling) static 
-handleTime _ (S n fallingList falling static) = S (n+1) fallingList falling static 
+handleTime _ (S 3 fallingList falling static _) = 
+  if canMove falling static D
+    then S 0 fallingList (map (move D) falling) static []
+    else S 0 fallingList [C 0 8] (falling ++ static) []
+handleTime _ (S n fallingList falling static _) = S (n+1) fallingList (if canMove falling static D then (map (move D) falling) else falling) static []
 
 
--- -- handleTime _ s = moveFalling D s
--- handleTime double (S time fallingList falling static rands) = 
---   if (double > time) then S double fallingList (map (move D) falling) static rands
---     else S time fallingList falling static rands
+--takes in state and moves to next state based on Direction
+-- updateState :: Direction -> State -> State
+-- updateState direction state = if canMove state then move state else state
+
+-- canMove :: Direction -> State -> Bool
+-- canMove direction (S _ _ falling static _) = intersect (map (move direction) falling) (static ++ wallCoord) == []
+-- takes a list of falling and static blocks and check if the falling blocks can move in the Direction anymore
+canMove :: [Coord] -> [Coord] -> Direction -> Bool
+canMove falling static direction = intersect newfalling (static ++ wallCoord) == []
+  where newfalling = map (move direction) falling
 
 handleEvent :: Event -> State -> State
 handleEvent (KeyPress key) s
@@ -56,15 +70,15 @@ eqCoord (C x1 y1) (C x2 y2) = x1 == x2 && y1 == y2
 instance Eq Coord where
   C x1 y1 == C x2 y2 = x1 == x2 && y1 == y2
 
+instance Show Coord where
+  show (C x1 y1) = "C " ++ show x1 ++ " " ++ show y1
+
+-- instance Show Prediction where
+  -- show (Prediction a b c) = show a ++ "-" ++ show b ++ "-" ++ show c
+
 data Direction = R | U | L | D deriving Eq
 
 data Tile = Box | Blank | Wall deriving Eq
-
-fallingBoxes :: [Coord]
-fallingBoxes = [(C 1 1), (C 0 0)]
-
-staticBoxes :: [Coord]
-staticBoxes = [(C 2 2), (C 0 2)]
 
 --generates the next block randomly, and updates state accordingly
 generateBlock :: State -> (State, [Coord])
@@ -87,9 +101,9 @@ pictureOfBoard :: [Coord] -> [Coord] -> Picture
 pictureOfBoard falling static = draw21times (\r -> draw21times (\c -> drawTileAt (board falling static (C r c)) (C r c)))
   where board :: [Coord] -> [Coord] -> Coord -> Tile
         board staticBoxes fallingBoxes (C x y)
+          | abs x == 9 || abs y == 9 = Wall
           | elem (C x y) staticBoxes = Box 
           | elem (C x y) fallingBoxes = Box 
-          | abs x == 9 || abs y == 9 = Wall
           | otherwise          = Blank
 
 draw21times :: (Integer -> Picture) -> Picture
