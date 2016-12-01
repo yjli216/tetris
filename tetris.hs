@@ -77,7 +77,9 @@ removeRow falling static = helper getYCoord static --newStatic--helper2 newStati
 
         -- gets a row and removes it if full
         remove :: Integer -> [Coord] -> [Coord]
-        remove row static = if isFull row static then filter (\(C _ x) -> x /= row) static else static
+        remove row static = if isFull row static then shiftDown row (filter (\(C _ x) -> x /= row) static) else static
+        shiftDown :: Integer -> [Coord] -> [Coord]
+        shiftDown row static = map (\(C x y) -> if y > row then C x (y-1) else C x y) static
         isFull :: Integer -> [Coord] -> Bool
         isFull row rowCoord = and (map (\r -> elem (C r row) rowCoord) rowOfInt)
         -- getRow row = filter (\(C _ y) -> y == row) static -- check if the entire row is there
