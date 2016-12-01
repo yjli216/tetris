@@ -6,18 +6,14 @@ import CodeWorld
 import System.Random
 import Data.List
 
-data State = S Double [[Coord]] [Coord] [Coord] [Integer]
+data State = S Double [[Coord]] [Coord] [Coord] [Integer] 
 -- Double is previous time
 -- [[Coord]] list of coord of all falling coord
 -- [Coord] is currently falling list
 -- [Coord] is currently static blocks
 -- [Integer] is an infinite list of random numbers to choose blocks from
 
---main :: IO ()
---main = interactionOf initialState handleTime handleEvent drawState
-
--- initialState = S 0 [[C 0 0]] [C 0 8] [C 6 6, C 5 5, C 0 0] (randoms $ mkStdGen 0)
-mkInitialState blocks = S 0 blocks [C 0 8] [] (randoms $ mkStdGen 0)
+mkInitialState blocks = S 0 blocks [C 0 9] [] (randoms $ mkStdGen 0)
 
 --all the wallCoordinates
 wallCoord :: [Coord]
@@ -29,9 +25,15 @@ handleTime :: Double -> State -> State
 handleTime _ (S 3 fallingList falling static _) = 
   if canMove (map (move D) falling) static D
     then S 0 fallingList (map (move D) falling) static []
-    else S 0 fallingList [C 0 8] (removeRow falling (falling ++ static)) []
+    else S 0 fallingList [C 0 9] (removeRow falling (falling ++ static)) []
 handleTime _ (S n fallingList falling static _) = S (n+1) fallingList falling static []
 
+-- handleTime _ (S n fallingList falling static _)
+  -- | n == 3 && canMove (map (move D) falling) static D = S 0 fallingList (map (move D) falling) static []
+  -- | n == 3 = S 0 fallingList [C 0 8] (removeRow falling (falling ++ static)) []
+
+gameLost :: State -> Bool
+gameLost (S _ _ _ static _) = filter (\(C _ y) -> y == 9) static /= [] --falling
 
 move :: Direction -> Coord -> Coord
 move U (C x y) = C x (y + 1)
@@ -39,9 +41,9 @@ move L (C x y) = C (x - 1) y
 move R (C x y) = C (x + 1) y
 move D (C x y) = C x (y - 1)
 
-
 handleEvent :: Event -> State -> State
 handleEvent (KeyPress key) s
+    | gameLost s = s
     | key == "Right" = moveFalling R s
     | key == "Left"    = moveFalling L s
 handleEvent _ c = c
@@ -49,31 +51,24 @@ handleEvent _ c = c
 moveFalling :: Direction -> State -> State
 moveFalling d (S time fallingList falling static rands) = (S time fallingList (moveCoords falling static d) static rands)
 
--- moveFalling d (S time fallingList falling static rands) = (S time fallingList (map (move d) falling) static rands)
-
--- takes a list of falling and static blocks and check if the falling blocks can move in the Direction anymore
+-- moves block if can, else don't move them
 moveCoords :: [Coord] -> [Coord] -> Direction -> [Coord]
 moveCoords falling static direction = if canMove newFalling static direction then newFalling else falling
--- moveCoords falling static direction = newFalling
   where newFalling = map (move direction) falling
 
+-- takes a list of falling and static blocks and check if the falling blocks can move in the Direction
 canMove :: [Coord] -> [Coord] -> Direction -> Bool
 canMove falling static direction = intersect falling (static ++ wallCoord) == []
 
 -- takes falling coords and (falling + static) coords and check if a new row has been formed
 removeRow :: [Coord] -> [Coord] -> [Coord]
-removeRow falling static = helper getYCoord static --newStatic--helper2 newStatic newStatic
+removeRow falling static = helper getYCoord static
 
-  where newStatic = helper getYCoord static
-        getYCoord :: [Integer]
+  where getYCoord :: [Integer]
         getYCoord = nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
         
         helper [] static = static
         helper (x:xs) static = helper (xs) (remove x static)
-
-
-        -- helper2 [] static = static
-        -- helper2 (x:xs) static = helper2 xs ((moveCoords [x] static D) ++ (delete x static))    --if moveCoords [x] static D then helper2 xs ((move D x) : delete x static) else helper2 xs static
 
         -- gets a row and removes it if full
         remove :: Integer -> [Coord] -> [Coord]
@@ -82,27 +77,14 @@ removeRow falling static = helper getYCoord static --newStatic--helper2 newStati
         shiftDown row static = map (\(C x y) -> if y > row then C x (y-1) else C x y) static
         isFull :: Integer -> [Coord] -> Bool
         isFull row rowCoord = and (map (\r -> elem (C r row) rowCoord) rowOfInt)
-        -- getRow row = filter (\(C _ y) -> y == row) static -- check if the entire row is there
-        -- isPresent :: Integer -> [Coord] -> Bool
-        -- isPresent int rowCoord = elem int (map (\(C x _) -> x) rowCoord) -- checks if a single number is in the list
-        
-        --and (map (\r -> elem r (map (\(C x _) -> x) rowCoord)) rowOfInt)
-        -- check if entire row is full
-
-        --elem row (map (\(C x _) -> x) rowCoord) -- check if integer is in rowCoord --(map (\row -> map (\(C _ y) -> y == r) row) row)
-
-        -- and (map (\r -> elem ()))
-        --(map (\r -> map (\(C _ y) -> y == r) row) row) -- checks if entire row is filled
         rowOfInt :: [Integer]
         rowOfInt = go (-8) []
         go 8 list = 8 : list
         go n list = n : go (n + 1) list
 
-rowOfCoord int = go (-9) []
-  where go 10 list = list
-        go n list = (C n int) : (go (n+1) list)
-
 drawState :: State -> Picture
+drawState s
+  | gameLost s = scaled 2 2 (text "Game Over!");
 drawState (S _ _ falling static _) = pictureOfBoard falling static
 
 data Coord = C Integer Integer
@@ -115,9 +97,6 @@ instance Eq Coord where
 
 instance Show Coord where
   show (C x1 y1) = "C " ++ show x1 ++ " " ++ show y1
-
--- instance Show Prediction where
-  -- show (Prediction a b c) = show a ++ "-" ++ show b ++ "-" ++ show c
 
 data Direction = R | U | L | D deriving Eq
 
@@ -161,6 +140,3 @@ drawTileAt tile c = atCoord c (drawTile tile)
 
 atCoord :: Coord -> Picture -> Picture
 atCoord (C x y) pic = translated (fromIntegral x) (fromIntegral y) pic
-
-
-
