@@ -92,8 +92,8 @@ removeRow falling static = helper getYCoord static --newStatic--helper2 newStati
         -- and (map (\r -> elem ()))
         --(map (\r -> map (\(C _ y) -> y == r) row) row) -- checks if entire row is filled
         rowOfInt :: [Integer]
-        rowOfInt = go (-9) []
-        go 9 list = 9 : list
+        rowOfInt = go (-8) []
+        go 8 list = 8 : list
         go n list = n : go (n + 1) list
 
 rowOfCoord int = go (-9) []
