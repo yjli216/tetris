@@ -26,23 +26,44 @@ wallCoord = add [] (-9)
         add list n = C 9 n : C n 9 : C n (-9) : C (-9) n : add list (n+1)
 
 handleTime :: Double -> State -> State
-handleTime _ (S 3 fallingList falling static _) = 
+handleTime _ (S 10 fallingList falling static _) = 
   if canMove falling static D
     then S 0 fallingList (map (move D) falling) static []
     else S 0 fallingList [C 0 8] (falling ++ static) []
 handleTime _ (S n fallingList falling static _) = S (n+1) fallingList (if canMove falling static D then (map (move D) falling) else falling) static []
 
-
---takes in state and moves to next state based on Direction
--- updateState :: Direction -> State -> State
--- updateState direction state = if canMove state then move state else state
-
--- canMove :: Direction -> State -> Bool
--- canMove direction (S _ _ falling static _) = intersect (map (move direction) falling) (static ++ wallCoord) == []
 -- takes a list of falling and static blocks and check if the falling blocks can move in the Direction anymore
 canMove :: [Coord] -> [Coord] -> Direction -> Bool
 canMove falling static direction = intersect newfalling (static ++ wallCoord) == []
   where newfalling = map (move direction) falling
+
+-- takes falling coords and (falling + static) coords and check if a new row has been formed
+removeRow :: [Coord] -> [Coord] -> [Coord]
+removeRow falling static = falling
+  where getYCoord :: [Integer]
+        getYCoord = sort (nub (map (\(C _ y) -> y) falling)) -- get the Y coord of all the falling blocks in sorted order
+        
+
+
+        -- gets a row and removes it if full
+        remove :: Integer -> [Coord] -> [Coord]
+        remove row static = if isFull row static then filter (\(C _ x) -> x /= row) static else static
+        -- getRow row = filter (\(C _ y) -> y == row) static -- check if the entire row is there
+        -- isPresent :: Integer -> [Coord] -> Bool
+        -- isPresent int rowCoord = elem int (map (\(C x _) -> x) rowCoord) -- checks if a single number is in the list
+        isFull :: Integer -> [Coord] -> Bool
+        isFull row rowCoord = and (map (\r -> elem (C r row) rowCoord) rowOfInt)
+        --and (map (\r -> elem r (map (\(C x _) -> x) rowCoord)) rowOfInt)
+        -- check if entire row is full
+
+        --elem row (map (\(C x _) -> x) rowCoord) -- check if integer is in rowCoord --(map (\row -> map (\(C _ y) -> y == r) row) row)
+
+        -- and (map (\r -> elem ()))
+        --(map (\r -> map (\(C _ y) -> y == r) row) row) -- checks if entire row is filled
+        rowOfInt :: [Integer]
+        rowOfInt = go (-9) []
+        go 9 list = 9 : list
+        go n list = n : go (n + 1) list
 
 handleEvent :: Event -> State -> State
 handleEvent (KeyPress key) s
