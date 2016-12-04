@@ -22,11 +22,11 @@ wallCoord = add [] (-9)
         add list n = C 9 n : C n 9 : C n (-9) : C (-9) n : add list (n+1)
 
 handleTime :: Double -> State -> State
-handleTime _ (S 3 fallingList falling static _) = 
+handleTime _ (S 3 fallingList falling static rands) = 
   if canMove (map (move D) falling) static D
-    then S 0 fallingList (map (move D) falling) static []
-    else S 0 fallingList [C 0 9] (removeRow falling (falling ++ static)) []
-handleTime _ (S n fallingList falling static _) = S (n+1) fallingList falling static []
+    then S 0 fallingList (map (move D) falling) static rands
+    else S 0 fallingList (generateBlock fallingList rands) (removeRow falling (falling ++ static)) (tail rands)
+handleTime _ (S n fallingList falling static rands) = S (n+1) fallingList falling static rands
 
 -- handleTime _ (S n fallingList falling static _)
   -- | n == 3 && canMove (map (move D) falling) static D = S 0 fallingList (map (move D) falling) static []
@@ -41,11 +41,20 @@ move L (C x y) = C (x - 1) y
 move R (C x y) = C (x + 1) y
 move D (C x y) = C x (y - 1)
 
+--shifts a block by n in direction d (used by rotate fxn)
+shiftBlock :: Integer -> Direction -> [Coord] -> [Coord]
+shiftBlock n U l = map (\(C x y) -> C x (y + n)) l
+shiftBlock n L l = map (\(C x y) -> C (x - n) y) l
+shiftBlock n R l = map (\(C x y) -> C (x + n) y) l
+shiftBlock n D l = map (\(C x y) -> C x (y - n)) l
+
 handleEvent :: Event -> State -> State
 handleEvent (KeyPress key) s
     | gameLost s = s
     | key == "Right" = moveFalling R s
-    | key == "Left"    = moveFalling L s
+    | key == "Left"  = moveFalling L s
+    | key == "Up"    = rotateBlock False s
+    | key == "Down"  = rotateBlock True s
 handleEvent _ c = c
 
 moveFalling :: Direction -> State -> State
@@ -62,25 +71,25 @@ canMove falling static direction = intersect falling (static ++ wallCoord) == []
 
 -- takes falling coords and (falling + static) coords and check if a new row has been formed
 removeRow :: [Coord] -> [Coord] -> [Coord]
-removeRow falling static = helper getYCoord static
+removeRow falling static = helper getYCoord static where
 
-  where getYCoord :: [Integer]
-        getYCoord = nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
-        
-        helper [] static = static
-        helper (x:xs) static = helper (xs) (remove x static)
+  getYCoord :: [Integer]
+  getYCoord = nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
+  
+  helper [] static = static
+  helper (x:xs) static = helper (xs) (remove x static)
 
-        -- gets a row and removes it if full
-        remove :: Integer -> [Coord] -> [Coord]
-        remove row static = if isFull row static then shiftDown row (filter (\(C _ x) -> x /= row) static) else static
-        shiftDown :: Integer -> [Coord] -> [Coord]
-        shiftDown row static = map (\(C x y) -> if y > row then C x (y-1) else C x y) static
-        isFull :: Integer -> [Coord] -> Bool
-        isFull row rowCoord = and (map (\r -> elem (C r row) rowCoord) rowOfInt)
-        rowOfInt :: [Integer]
-        rowOfInt = go (-8) []
-        go 8 list = 8 : list
-        go n list = n : go (n + 1) list
+  -- gets a row and removes it if full
+  remove :: Integer -> [Coord] -> [Coord]
+  remove row static = if isFull row static then shiftDown row (filter (\(C _ x) -> x /= row) static) else static
+  shiftDown :: Integer -> [Coord] -> [Coord]
+  shiftDown row static = map (\(C x y) -> if y > row then C x (y-1) else C x y) static
+  isFull :: Integer -> [Coord] -> Bool
+  isFull row rowCoord = and (map (\r -> elem (C r row) rowCoord) rowOfInt)
+  rowOfInt :: [Integer]
+  rowOfInt = go (-8) []
+  go 8 list = 8 : list
+  go n list = n : go (n + 1) list
 
 drawState :: State -> Picture
 drawState s
@@ -102,12 +111,68 @@ data Direction = R | U | L | D deriving Eq
 
 data Tile = Box | Blank | Wall deriving Eq
 
+
+--generates the next block randomly, and updates state accordingly
+generateBlock :: [[Coord]] -> [Integer] -> [Coord]
+generateBlock fallingList rands =
+  fallingList !! ((fromIntegral $ head $ rands) `mod` (length fallingList))
+
+{-
 --generates the next block randomly, and updates state accordingly
 generateBlock :: State -> (State, [Coord])
 generateBlock (S time fallingList falling static rands) = 
     let block = fallingList !! (fromIntegral $ head $ rands) in
     let state = S time fallingList falling static (tail rands) in
     (state, block)
+-}
+
+--rotates a block
+--True = left, False = right
+rotateBlock :: Bool -> State -> State
+rotateBlock isLeft (S time fallingList falling static rands) =
+  let rotatedList = rotate falling in--leftCheck $ rightCheck $ downCheck $ rotate falling in
+  if hitWall rotatedList then S time fallingList falling static rands else
+  S time fallingList rotatedList static rands where
+    hitWall lst = foldr (\(C x _) acc -> (x <= -8 || x >= 8) || acc) False lst
+    --this rotates the block
+    rotate :: [Coord] -> [Coord]
+    rotate lst = map (\(C x y) -> case isLeft of
+      True  -> (C (topY - y + leftX) (blockWidth + x - leftX - 1 + topY))
+      False -> (C (blockHeight + y - topY - 1 + leftX) (leftX - x + topY))
+      ) lst
+    leftX = getMin L falling
+    topY = getMin U falling
+    blockHeight = getMin U falling - getMin D falling
+    blockWidth = getMin R falling - getMin L falling
+    --this shifts the block up/left/right in case of overlap
+    leftCheck lst = shiftBlock (getDMost R falling static - getMin L lst) R lst
+    rightCheck lst = shiftBlock (getDMost L falling static - getMin R lst) L lst
+    downCheck lst = shiftBlock (getDMost U falling static - getMin D lst) U lst
+    --these functions determine how much to do the shifting
+    getDMost d l1 l2 = foldr (\(C x y) dMost ->
+      case d of
+        L -> if x >= 8 then min dMost x else dMost
+        R -> if x <= -8 then max dMost x else dMost
+        D -> if elem (C x y) l2 then min dMost y else dMost
+        U -> if elem (C x y) l2 then max dMost y else dMost
+      ) (getFirstEl d l1) l1
+
+--gets the left-most/right-most/top/bottom part of a block
+getMin dir l = foldr (
+    \(C x y) currMin -> case dir of
+    L -> min x currMin
+    R -> max x currMin
+    D -> min y currMin
+    U -> max y currMin
+  ) (getFirstEl dir l) l
+
+--gets the first coord from a list of coords (either x or y, depending on direction)
+getFirstEl dir ((C x y):_) = case dir of
+  L -> x
+  R -> x
+  U -> y
+  D -> y
+
 
 --drawing
 wall, box :: Picture
