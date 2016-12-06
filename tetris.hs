@@ -13,7 +13,7 @@ data State = S Double [[Coord]] [Coord] [Coord] [Integer]
 -- [Coord] is currently static blocks
 -- [Integer] is an infinite list of random numbers to choose blocks from
 
-mkInitialState blocks = S 0 blocks [C 0 9] [] (randoms $ mkStdGen 0)
+mkInitialState blocks = S 0 blocks (head blocks) [] (randoms $ mkStdGen 0)
 
 --all the wallCoordinates
 wallCoord :: [Coord]
@@ -71,14 +71,14 @@ canMove falling static direction = intersect falling (static ++ wallCoord) == []
 
 -- takes falling coords and (falling + static) coords and check if a new row has been formed
 removeRow :: [Coord] -> [Coord] -> [Coord]
-removeRow falling static = helper getYCoord static where
+removeRow falling static = helper (reverse getYCoord) static where
 
   getYCoord :: [Integer]
-  getYCoord = rowOfInt--nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
+  getYCoord = nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
   
-  helper [] static = static
   helper (x:xs) static = helper (xs) (remove x static)
-
+  helper [] static = static
+  
   -- gets a row and removes it if full
   remove :: Integer -> [Coord] -> [Coord]
   remove row static = if isFull row static then shiftDown row (filter (\(C _ x) -> x /= row) static) else static
