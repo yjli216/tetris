@@ -19,7 +19,7 @@ mkInitialState blocks = S 0 blocks [C 0 9] [] (randoms $ mkStdGen 0)
 wallCoord :: [Coord]
 wallCoord = add [] (-9)
   where add list 9 = C 9 9 : C (-9) (-9) : list
-        add list n = C 9 n : C n 9 : C n (-9) : C (-9) n : add list (n+1)
+        add list n = C 9 n : C n (-9) : C (-9) n : add list (n+1)
 
 handleTime :: Double -> State -> State
 handleTime _ (S 3 fallingList falling static rands) = 
@@ -74,7 +74,7 @@ removeRow :: [Coord] -> [Coord] -> [Coord]
 removeRow falling static = helper getYCoord static where
 
   getYCoord :: [Integer]
-  getYCoord = nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
+  getYCoord = rowOfInt--nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
   
   helper [] static = static
   helper (x:xs) static = helper (xs) (remove x static)
@@ -188,9 +188,9 @@ pictureOfBoard :: [Coord] -> [Coord] -> Picture
 pictureOfBoard falling static = draw21times (\r -> draw21times (\c -> drawTileAt (board falling static (C r c)) (C r c)))
   where board :: [Coord] -> [Coord] -> Coord -> Tile
         board staticBoxes fallingBoxes (C x y)
-          | abs x == 9 || abs y == 9 = Wall
           | elem (C x y) staticBoxes = Box 
           | elem (C x y) fallingBoxes = Box 
+          | abs x == 9 || abs y == 9 = Wall
           | otherwise          = Blank
 
 draw21times :: (Integer -> Picture) -> Picture
