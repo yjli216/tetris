@@ -5,15 +5,18 @@ module Tetris where
 import CodeWorld
 import System.Random
 import Data.List
+import Data.Text(pack)
+import Data.Char(chr)
 
-data State = S Double [[Coord]] [Coord] [Coord] [Integer] 
+data State = S Double [[Coord]] [Coord] [Coord] [Integer] Integer
 -- Double is previous time
 -- [[Coord]] list of coord of all falling coord
 -- [Coord] is currently falling list
 -- [Coord] is currently static blocks
 -- [Integer] is an infinite list of random numbers to choose blocks from
+-- Integer is the current number of rows cleared
 
-mkInitialState blocks = S 0 blocks [C 0 9] [] (randoms $ mkStdGen 0)
+mkInitialState blocks = S 0 blocks [C 0 9] [] (randoms $ mkStdGen 0) 0
 
 --all the wallCoordinates
 wallCoord :: [Coord]
@@ -22,18 +25,20 @@ wallCoord = add [] (-9)
         add list n = C 9 n : C n (-9) : C (-9) n : add list (n+1)
 
 handleTime :: Double -> State -> State
-handleTime _ (S 3 fallingList falling static rands) = 
+handleTime _ (S 3 fallingList falling static rands score) = 
   if canMove (map (move D) falling) static D
-    then S 0 fallingList (map (move D) falling) static rands
-    else S 0 fallingList (generateBlock fallingList rands) (removeRow falling (falling ++ static)) (tail rands)
-handleTime _ (S n fallingList falling static rands) = S (n+1) fallingList falling static rands
+  then S 0 fallingList (map (move D) falling) static rands score
+  else
+    let (newStatic, newScore) = removeRow score falling (falling ++ static) in
+    S 0 fallingList (generateBlock fallingList rands) newStatic (tail rands) newScore
+handleTime _ (S n fallingList falling static rands score) = S (n+1) fallingList falling static rands score
 
 -- handleTime _ (S n fallingList falling static _)
   -- | n == 3 && canMove (map (move D) falling) static D = S 0 fallingList (map (move D) falling) static []
   -- | n == 3 = S 0 fallingList [C 0 8] (removeRow falling (falling ++ static)) []
 
 gameLost :: State -> Bool
-gameLost (S _ _ _ static _) = filter (\(C _ y) -> y == 9) static /= [] --falling
+gameLost (S _ _ _ static _ _) = filter (\(C _ y) -> y == 9) static /= [] --falling
 
 move :: Direction -> Coord -> Coord
 move U (C x y) = C x (y + 1)
@@ -58,7 +63,7 @@ handleEvent (KeyPress key) s
 handleEvent _ c = c
 
 moveFalling :: Direction -> State -> State
-moveFalling d (S time fallingList falling static rands) = (S time fallingList (moveCoords falling static d) static rands)
+moveFalling d (S time fallingList falling static rands score) = (S time fallingList (moveCoords falling static d) static rands score)
 
 -- moves block if can, else don't move them
 moveCoords :: [Coord] -> [Coord] -> Direction -> [Coord]
@@ -70,18 +75,18 @@ canMove :: [Coord] -> [Coord] -> Direction -> Bool
 canMove falling static direction = intersect falling (static ++ wallCoord) == []
 
 -- takes falling coords and (falling + static) coords and check if a new row has been formed
-removeRow :: [Coord] -> [Coord] -> [Coord]
-removeRow falling static = helper getYCoord static where
+removeRow :: Integer -> [Coord] -> [Coord] -> ([Coord], Integer)
+removeRow score falling static = helper getYCoord (static, score) where
 
   getYCoord :: [Integer]
   getYCoord = rowOfInt--nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
   
-  helper [] static = static
-  helper (x:xs) static = helper (xs) (remove x static)
+  helper [] (static, score) = (static, score)
+  helper (x:xs) (static, score) = helper (xs) (remove score x static)
 
   -- gets a row and removes it if full
-  remove :: Integer -> [Coord] -> [Coord]
-  remove row static = if isFull row static then shiftDown row (filter (\(C _ x) -> x /= row) static) else static
+  remove :: Integer -> Integer -> [Coord] -> ([Coord], Integer)
+  remove score row static = if isFull row static then (shiftDown row (filter (\(C _ x) -> x /= row) static), score+1) else (static, score)
   shiftDown :: Integer -> [Coord] -> [Coord]
   shiftDown row static = map (\(C x y) -> if y > row then C x (y-1) else C x y) static
   isFull :: Integer -> [Coord] -> Bool
@@ -94,7 +99,7 @@ removeRow falling static = helper getYCoord static where
 drawState :: State -> Picture
 drawState s
   | gameLost s = scaled 2 2 (text "Game Over!");
-drawState (S _ _ falling static _) = pictureOfBoard falling static
+drawState (S _ _ falling static _ score) = pictureOfBoard falling static score
 
 data Coord = C Integer Integer
 
@@ -114,6 +119,7 @@ data Tile = Box | Blank | Wall deriving Eq
 
 --generates the next block randomly, and updates state accordingly
 generateBlock :: [[Coord]] -> [Integer] -> [Coord]
+generateBlock _ [] = (C (-5) 5) : [C (-6) 5]
 generateBlock fallingList rands =
   fallingList !! ((fromIntegral $ head $ rands) `mod` (length fallingList))
 
@@ -129,10 +135,10 @@ generateBlock (S time fallingList falling static rands) =
 --rotates a block
 --True = left, False = right
 rotateBlock :: Bool -> State -> State
-rotateBlock isLeft (S time fallingList falling static rands) =
+rotateBlock isLeft (S time fallingList falling static rands score) =
   let rotatedList = rotate falling in--leftCheck $ rightCheck $ downCheck $ rotate falling in
-  if hitWall rotatedList then S time fallingList falling static rands else
-  S time fallingList rotatedList static rands where
+  if hitWall rotatedList then S time fallingList falling static rands score else
+  S time fallingList rotatedList static rands score where
     hitWall lst = foldr (\(C x _) acc -> (x <= -8 || x >= 8) || acc) False lst
     --this rotates the block
     rotate :: [Coord] -> [Coord]
@@ -184,8 +190,8 @@ drawTile Box     = box
 drawTile Blank   = blank
 drawTile Wall    = wall
 
-pictureOfBoard :: [Coord] -> [Coord] -> Picture
-pictureOfBoard falling static = draw21times (\r -> draw21times (\c -> drawTileAt (board falling static (C r c)) (C r c)))
+pictureOfBoard :: [Coord] -> [Coord] -> Integer -> Picture
+pictureOfBoard falling static score = atCoord (C (-10) 0) (text (pack $ show score)) & draw21times (\r -> draw21times (\c -> drawTileAt (board falling static (C r c)) (C r c)))
   where board :: [Coord] -> [Coord] -> Coord -> Tile
         board staticBoxes fallingBoxes (C x y)
           | elem (C x y) staticBoxes = Box 
