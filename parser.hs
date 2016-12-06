@@ -46,7 +46,7 @@ main = do
     Right blocks -> interactionOf initializeState handleTime handleEvent drawState where
       initializeState = mkInitialState initializeBlocks
       initializeBlocks :: [[Coord]]
-      initializeBlocks = moveUp 11 blocks --moves all blocks up by 5 units to the top of the screen
+      initializeBlocks = moveUp 15 blocks --moves all blocks up by 5 units to the top of the screen
       moveUp :: Integer -> [[Coord]] -> [[Coord]]
       moveUp 0 lst = lst
       moveUp n lst = moveUp (n-1) (map (\block -> map (move U) block) lst)

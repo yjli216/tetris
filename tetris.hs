@@ -16,7 +16,8 @@ data State = S Double [[Coord]] [Coord] [Coord] [Integer] Integer
 -- [Integer] is an infinite list of random numbers to choose blocks from
 -- Integer is the current number of rows cleared
 
-mkInitialState blocks = S 0 blocks [C 0 9] [] (randoms $ mkStdGen 0) 0
+
+mkInitialState blocks = S 0 blocks (head blocks) [] (randoms $ mkStdGen 0)
 
 --all the wallCoordinates
 wallCoord :: [Coord]
@@ -25,7 +26,8 @@ wallCoord = add [] (-9)
         add list n = C 9 n : C n (-9) : C (-9) n : add list (n+1)
 
 handleTime :: Double -> State -> State
-handleTime _ (S 3 fallingList falling static rands score) = 
+
+handleTime _ (S 2 fallingList falling static rands score) = 
   if canMove (map (move D) falling) static D
   then S 0 fallingList (map (move D) falling) static rands score
   else
@@ -76,10 +78,10 @@ canMove falling static direction = intersect falling (static ++ wallCoord) == []
 
 -- takes falling coords and (falling + static) coords and check if a new row has been formed
 removeRow :: Integer -> [Coord] -> [Coord] -> ([Coord], Integer)
-removeRow score falling static = helper getYCoord (static, score) where
+removeRow score falling static = helper (reverse getYCoord) (static, score) where
 
   getYCoord :: [Integer]
-  getYCoord = rowOfInt--nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
+  getYCoord = nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
   
   helper [] (static, score) = (static, score)
   helper (x:xs) (static, score) = helper (xs) (remove score x static)
