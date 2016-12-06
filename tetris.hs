@@ -22,7 +22,7 @@ wallCoord = add [] (-9)
         add list n = C 9 n : C n (-9) : C (-9) n : add list (n+1)
 
 handleTime :: Double -> State -> State
-handleTime _ (S 3 fallingList falling static rands) = 
+handleTime _ (S 2 fallingList falling static rands) = 
   if canMove (map (move D) falling) static D
     then S 0 fallingList (map (move D) falling) static rands
     else S 0 fallingList (generateBlock fallingList rands) (removeRow falling (falling ++ static)) (tail rands)
@@ -78,7 +78,7 @@ removeRow falling static = helper (reverse getYCoord) static where
   
   helper (x:xs) static = helper (xs) (remove x static)
   helper [] static = static
-  
+
   -- gets a row and removes it if full
   remove :: Integer -> [Coord] -> [Coord]
   remove row static = if isFull row static then shiftDown row (filter (\(C _ x) -> x /= row) static) else static
