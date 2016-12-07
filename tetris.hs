@@ -16,17 +16,30 @@ data State = S Double [[Coord]] [Coord] [Coord] [Integer] Integer
 -- [Integer] is an infinite list of random numbers to choose blocks from
 -- Integer is the current number of rows cleared
 
+data Interaction world = Interaction world (Double -> world -> world) (Event -> world -> world) (world -> Picture)
 
-mkInitialState blocks = S 0 blocks (head blocks) [] (randoms $ mkStdGen 0)
+--runs the interaction
+runInteraction :: Interaction s -> IO ()
+runInteraction (Interaction state0 step handle draw)
+  = interactionOf state0 step handle draw
 
---all the wallCoordinates
+--makes teh game resettable
+resetable :: Interaction s -> Interaction s
+resetable (Interaction state handleTime handleEvent drawState) 
+  = Interaction state handleTime handleEvent' drawState 
+  where handleEvent' (KeyPress key) _ | key == "Esc" = state
+        handleEvent' e s = handleEvent e s
+
+--initialise the block
+mkInitialState blocks = S 0 blocks (head blocks) [] (randoms $ mkStdGen 0) 0
+
+--all the wall Coordinates (except top row)
 wallCoord :: [Coord]
 wallCoord = add [] (-9)
   where add list 9 = C 9 9 : C (-9) (-9) : list
         add list n = C 9 n : C n (-9) : C (-9) n : add list (n+1)
 
 handleTime :: Double -> State -> State
-
 handleTime _ (S 2 fallingList falling static rands score) = 
   if canMove (map (move D) falling) static D
   then S 0 fallingList (map (move D) falling) static rands score
@@ -35,12 +48,8 @@ handleTime _ (S 2 fallingList falling static rands score) =
     S 0 fallingList (generateBlock fallingList rands) newStatic (tail rands) newScore
 handleTime _ (S n fallingList falling static rands score) = S (n+1) fallingList falling static rands score
 
--- handleTime _ (S n fallingList falling static _)
-  -- | n == 3 && canMove (map (move D) falling) static D = S 0 fallingList (map (move D) falling) static []
-  -- | n == 3 = S 0 fallingList [C 0 8] (removeRow falling (falling ++ static)) []
-
 gameLost :: State -> Bool
-gameLost (S _ _ _ static _ _) = filter (\(C _ y) -> y == 9) static /= [] --falling
+gameLost (S _ _ _ static _ _) = filter (\(C _ y) -> y == 9) static /= []
 
 move :: Direction -> Coord -> Coord
 move U (C x y) = C x (y + 1)
@@ -60,8 +69,8 @@ handleEvent (KeyPress key) s
     | gameLost s = s
     | key == "Right" = moveFalling R s
     | key == "Left"  = moveFalling L s
-    | key == "Up"    = rotateBlock False s
-    | key == "Down"  = rotateBlock True s
+    | key == "Up"    = moveFalling R $ rotateBlock False s
+    | key == "Down"  = moveFalling D $ moveFalling D $ rotateBlock True s
 handleEvent _ c = c
 
 moveFalling :: Direction -> State -> State
@@ -78,21 +87,29 @@ canMove falling static direction = intersect falling (static ++ wallCoord) == []
 
 -- takes falling coords and (falling + static) coords and check if a new row has been formed
 removeRow :: Integer -> [Coord] -> [Coord] -> ([Coord], Integer)
-removeRow score falling static = helper (reverse getYCoord) (static, score) where
+removeRow score falling static = helper getYCoord (static, score) where
 
   getYCoord :: [Integer]
-  getYCoord = nub (map (\(C _ y) -> y) falling) -- get the Y coord of all the falling blocks in sorted order
+  getYCoord = reverse $ nub $ map (\(C _ y) -> y) falling -- get the Y coord of all the falling blocks in reverse sorted order
   
   helper [] (static, score) = (static, score)
-  helper (x:xs) (static, score) = helper (xs) (remove score x static)
+  helper (x:xs) (static, score) = helper xs $ remove score x static
 
   -- gets a row and removes it if full
   remove :: Integer -> Integer -> [Coord] -> ([Coord], Integer)
-  remove score row static = if isFull row static then (shiftDown row (filter (\(C _ x) -> x /= row) static), score+1) else (static, score)
+  remove score row static = if isFull row static 
+    then (shiftDown row (filter (\(C _ x) -> x /= row) static), score + 1) 
+    else (static, score)
+
+  -- shifts coord down
   shiftDown :: Integer -> [Coord] -> [Coord]
   shiftDown row static = map (\(C x y) -> if y > row then C x (y-1) else C x y) static
+
+  -- check if row is full
   isFull :: Integer -> [Coord] -> Bool
   isFull row rowCoord = and (map (\r -> elem (C r row) rowCoord) rowOfInt)
+
+  -- generates a list of numbers of [-8 to 8]
   rowOfInt :: [Integer]
   rowOfInt = go (-8) []
   go 8 list = 8 : list
@@ -124,15 +141,6 @@ generateBlock :: [[Coord]] -> [Integer] -> [Coord]
 generateBlock _ [] = (C (-5) 5) : [C (-6) 5]
 generateBlock fallingList rands =
   fallingList !! ((fromIntegral $ head $ rands) `mod` (length fallingList))
-
-{-
---generates the next block randomly, and updates state accordingly
-generateBlock :: State -> (State, [Coord])
-generateBlock (S time fallingList falling static rands) = 
-    let block = fallingList !! (fromIntegral $ head $ rands) in
-    let state = S time fallingList falling static (tail rands) in
-    (state, block)
--}
 
 --rotates a block
 --True = left, False = right
